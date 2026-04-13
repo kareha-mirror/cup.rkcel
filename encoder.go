@@ -1,16 +1,20 @@
 package rkcel
 
 import (
+	"bufio"
 	"fmt"
 	"image"
 	"image/draw"
 	"io"
 	"os"
+	"sort"
 )
 
 type Encoder struct {
 	w io.Writer
 
+	color   int
+	found   bool
 	current int
 	count   int
 }
@@ -19,31 +23,35 @@ func NewEncoder(w io.Writer) *Encoder {
 	return &Encoder{
 		w: w,
 
+		color:   -1,
+		found:   false,
 		current: -1,
 		count:   0,
 	}
 }
 
 func (enc *Encoder) Start() {
-	enc.Flush()
+	enc.FlushLine()
 
 	fmt.Fprint(enc.w, "\x1bPq")
 }
 
 func (enc *Encoder) End() {
-	enc.Flush()
+	enc.FlushLine()
 
 	fmt.Fprint(enc.w, "\x1b\\")
+
+	enc.color = -1
 }
 
 func (enc *Encoder) Return() {
-	enc.Flush()
+	enc.FlushLine()
 
 	fmt.Fprint(enc.w, "$")
 }
 
 func (enc *Encoder) Newline() {
-	enc.Flush()
+	enc.FlushLine()
 
 	fmt.Fprint(enc.w, "-")
 }
@@ -56,7 +64,7 @@ func (enc *Encoder) Palette(i, r, g, b int) {
 }
 
 func (enc *Encoder) Color(i int) {
-	fmt.Fprintf(enc.w, "#%d", i)
+	enc.color = i
 }
 
 func (enc *Encoder) Put(c int) {
@@ -68,6 +76,13 @@ func (enc *Encoder) Put(c int) {
 
 		enc.current = c
 		enc.count = 1
+
+		if c != 0 {
+			if !enc.found {
+				fmt.Fprintf(enc.w, "#%d", enc.color)
+			}
+			enc.found = true
+		}
 	}
 }
 
@@ -91,6 +106,17 @@ func (enc *Encoder) Flush() {
 	enc.count = 0
 }
 
+func (enc *Encoder) FlushLine() {
+	if enc.found {
+		enc.Flush()
+
+		enc.found = false
+	} else {
+		enc.current = -1
+		enc.count = 0
+	}
+}
+
 func Print(img image.Image) {
 	Fprint(os.Stdout, img)
 }
@@ -100,7 +126,10 @@ func Fprint(w io.Writer, img image.Image) {
 	rgba := image.NewRGBA(rect)
 	draw.Draw(rgba, rect, img, rect.Min, draw.Src)
 
-	enc := NewEncoder(w)
+	bw := bufio.NewWriter(w)
+	defer bw.Flush()
+
+	enc := NewEncoder(bw)
 
 	enc.Start()
 	for r := 0; r < 6; r++ {
@@ -114,9 +143,46 @@ func Fprint(w io.Writer, img image.Image) {
 
 	width := rect.Max.X - rect.Min.X
 	height := rect.Max.Y - rect.Min.Y
-	for y := 0; y < height; y += 6 {
 
-		for color := 0; color < 216; color++ {
+	index := make([]int, width*height)
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			i := rgba.PixOffset(x, y)
+			r := rgba.Pix[i]
+			g := rgba.Pix[i+1]
+			b := rgba.Pix[i+2]
+
+			cr := (int(r) + 25) / 51
+			cg := (int(g) + 25) / 51
+			cb := (int(b) + 25) / 51
+
+			c := cr*36 + cg*6 + cb
+			index[x+y*width] = c
+		}
+	}
+
+	for y := 0; y < height; y += 6 {
+		used := map[int]bool{}
+
+		for dy := 0; dy < 6; dy++ {
+			yy := y + dy
+			if yy >= height {
+				break
+			}
+
+			for x := 0; x < width; x++ {
+				c := index[x+yy*width]
+				used[c] = true
+			}
+		}
+
+		colors := make([]int, 0, len(used))
+		for c := range used {
+			colors = append(colors, c)
+		}
+		sort.Ints(colors)
+
+		for _, color := range colors {
 			enc.Color(color)
 
 			for x := 0; x < width; x++ {
@@ -129,17 +195,8 @@ func Fprint(w io.Writer, img image.Image) {
 						break
 					}
 
-					i := rgba.PixOffset(x, yy)
-					r := rgba.Pix[i]
-					g := rgba.Pix[i+1]
-					b := rgba.Pix[i+2]
-
-					cr := (int(r) + 25) / 51
-					cg := (int(g) + 25) / 51
-					cb := (int(b) + 25) / 51
-
-					c := cr*36 + cg*6 + cb
-					if int(c) == color {
+					c := index[x+yy*width]
+					if c == color {
 						six |= 1 << dy
 					}
 				}
