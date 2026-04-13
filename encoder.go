@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"image"
+	"image/color"
 	"image/draw"
 	"io"
 	"os"
@@ -117,14 +118,34 @@ func (enc *Encoder) FlushLine() {
 	}
 }
 
-func Print(img image.Image) {
-	Fprint(os.Stdout, img)
+func Print(img image.Image, dither bool, median bool) {
+	Fprint(os.Stdout, img, dither, median)
 }
 
-func Fprint(w io.Writer, img image.Image) {
+var defPal []color.Color = make([]color.Color, 216)
+
+func init() {
+	for r := 0; r < 6; r++ {
+		for g := 0; g < 6; g++ {
+			for b := 0; b < 6; b++ {
+				i := r*36 + g*6 + b
+				defPal[i] = color.RGBA{
+					uint8(r * 51), uint8(g * 51), uint8(b * 51), 255,
+				}
+			}
+		}
+	}
+}
+
+func Fprint(w io.Writer, img image.Image, dither bool, median bool) {
 	rect := img.Bounds()
-	rgba := image.NewRGBA(rect)
-	draw.Draw(rgba, rect, img, rect.Min, draw.Src)
+	pal := defPal
+	dst := image.NewPaletted(rect, pal)
+	if dither {
+		draw.FloydSteinberg.Draw(dst, rect, img, rect.Min)
+	} else {
+		draw.Draw(dst, rect, img, rect.Min, draw.Src)
+	}
 
 	bw := bufio.NewWriter(w)
 	defer bw.Flush()
@@ -132,34 +153,13 @@ func Fprint(w io.Writer, img image.Image) {
 	enc := NewEncoder(bw)
 
 	enc.Start()
-	for r := 0; r < 6; r++ {
-		for g := 0; g < 6; g++ {
-			for b := 0; b < 6; b++ {
-				color := r*36 + g*6 + b
-				enc.Palette(color, r*51, g*51, b*51)
-			}
-		}
+	for c, p := range pal {
+		r, g, b, _ := p.RGBA()
+		enc.Palette(c, int(r>>8), int(g>>8), int(b>>8))
 	}
 
 	width := rect.Max.X - rect.Min.X
 	height := rect.Max.Y - rect.Min.Y
-
-	index := make([]int, width*height)
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			i := rgba.PixOffset(x, y)
-			r := rgba.Pix[i]
-			g := rgba.Pix[i+1]
-			b := rgba.Pix[i+2]
-
-			cr := (int(r) + 25) / 51
-			cg := (int(g) + 25) / 51
-			cb := (int(b) + 25) / 51
-
-			c := cr*36 + cg*6 + cb
-			index[x+y*width] = c
-		}
-	}
 
 	for y := 0; y < height; y += 6 {
 		used := map[int]bool{}
@@ -171,8 +171,8 @@ func Fprint(w io.Writer, img image.Image) {
 			}
 
 			for x := 0; x < width; x++ {
-				c := index[x+yy*width]
-				used[c] = true
+				c := dst.ColorIndexAt(x, yy)
+				used[int(c)] = true
 			}
 		}
 
@@ -182,8 +182,8 @@ func Fprint(w io.Writer, img image.Image) {
 		}
 		sort.Ints(colors)
 
-		for _, color := range colors {
-			enc.Color(color)
+		for _, col := range colors {
+			enc.Color(col)
 
 			for x := 0; x < width; x++ {
 
@@ -195,8 +195,8 @@ func Fprint(w io.Writer, img image.Image) {
 						break
 					}
 
-					c := index[x+yy*width]
-					if c == color {
+					c := dst.ColorIndexAt(x, yy)
+					if int(c) == col {
 						six |= 1 << dy
 					}
 				}

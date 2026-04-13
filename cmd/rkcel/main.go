@@ -1,11 +1,13 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
 	"os"
 
 	_ "golang.org/x/image/webp"
@@ -14,22 +16,34 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Printf("Usage: %s FILENAME\n", os.Args[0])
-		return
+	dither := flag.Bool("d", true, "dither")
+	median := flag.Bool("m", true, "median")
+	flag.Parse()
+
+	var in io.Reader
+	args := flag.Args()
+
+	if len(args) < 1 || args[0] == "-" {
+		in = os.Stdin
+	} else {
+		f, err := os.Open(args[0])
+		if err != nil {
+			fatal(err)
+		}
+		defer f.Close()
+		in = f
 	}
 
-	f, err := os.Open(os.Args[1])
+	img, _, err := image.Decode(in)
 	if err != nil {
 		panic(err)
 	}
-	defer f.Close()
 
-	img, _, err := image.Decode(f)
-	if err != nil {
-		panic(err)
-	}
-
-	rkcel.Print(img)
+	rkcel.Print(img, *dither, *median)
 	fmt.Print("\n")
+}
+
+func fatal(err error) {
+	fmt.Fprintln(os.Stderr, "error:", err)
+	os.Exit(1)
 }
