@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"image"
@@ -16,6 +17,7 @@ import (
 )
 
 func main() {
+	colors := flag.Int("c", 216, "colors (8 - 255)")
 	dither := flag.Bool("d", true, "dither")
 	median := flag.Bool("m", true, "median")
 	flag.Parse()
@@ -34,12 +36,16 @@ func main() {
 		in = f
 	}
 
-	img, _, err := image.Decode(in)
-	if err != nil {
-		panic(err)
+	if *colors < 8 || *colors > 255 {
+		fatal(errors.New("colors must be 8 - 255"))
 	}
 
-	rkcel.Print(img, *dither, *median)
+	img, _, err := image.Decode(in)
+	if err != nil {
+		fatal(err)
+	}
+
+	rkcel.Print(img, *colors, *dither, *median)
 	fmt.Print("\n")
 }
 

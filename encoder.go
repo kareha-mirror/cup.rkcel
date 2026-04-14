@@ -118,28 +118,50 @@ func (enc *Encoder) FlushLine() {
 	}
 }
 
-func Print(img image.Image, dither bool, median bool) {
-	Fprint(os.Stdout, img, dither, median)
+func Print(img image.Image, colors int, dither bool, median bool) {
+	Fprint(os.Stdout, img, colors, dither, median)
 }
 
-var defPal []color.Color = make([]color.Color, 216)
+func cbrt8(n int) int {
+	for i := 0; i <= 6; i++ { // 6^3 = 216
+		if i*i*i > n {
+			return i - 1
+		}
+	}
+	return 6
+}
 
-func init() {
-	for r := 0; r < 6; r++ {
-		for g := 0; g < 6; g++ {
-			for b := 0; b < 6; b++ {
-				i := r*36 + g*6 + b
-				defPal[i] = color.RGBA{
-					uint8(r * 51), uint8(g * 51), uint8(b * 51), 255,
+func flatPal(colors int) []color.Color {
+	n := cbrt8(colors)
+	var pal []color.Color = make([]color.Color, n*n*n)
+	for r := 0; r < n; r++ {
+		for g := 0; g < n; g++ {
+			for b := 0; b < n; b++ {
+				i := r*n*n + g*n + b
+				k := 255 / (n - 1)
+				pal[i] = color.RGBA{
+					uint8(r * k), uint8(g * k), uint8(b * k), 255,
 				}
 			}
 		}
 	}
+	return pal
 }
 
-func Fprint(w io.Writer, img image.Image, dither bool, median bool) {
+func Fprint(
+	w io.Writer,
+	img image.Image,
+	colors int,
+	dither bool,
+	median bool,
+) {
 	rect := img.Bounds()
-	pal := defPal
+	var pal []color.Color
+	if median {
+		pal = MedianCut(img, colors)
+	} else {
+		pal = flatPal(colors)
+	}
 	dst := image.NewPaletted(rect, pal)
 	if dither {
 		draw.FloydSteinberg.Draw(dst, rect, img, rect.Min)
@@ -176,13 +198,13 @@ func Fprint(w io.Writer, img image.Image, dither bool, median bool) {
 			}
 		}
 
-		colors := make([]int, 0, len(used))
+		cols := make([]int, 0, len(used))
 		for c := range used {
-			colors = append(colors, c)
+			cols = append(cols, c)
 		}
-		sort.Ints(colors)
+		sort.Ints(cols)
 
-		for _, col := range colors {
+		for _, col := range cols {
 			enc.Color(col)
 
 			for x := 0; x < width; x++ {
