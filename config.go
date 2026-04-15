@@ -16,8 +16,8 @@ type Config struct {
 
 func DefaultConfig() *Config {
 	return &Config{
-		CellWidth:  8,
-		CellHeight: 16,
+		CellWidth:  6,
+		CellHeight: 13,
 		UseBottom:  false,
 	}
 }

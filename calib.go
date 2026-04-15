@@ -1,11 +1,10 @@
-package calib
+package rkcel
 
 import (
 	"fmt"
 	"image"
 	"image/color"
 
-	"tea.kareha.org/cup/rkcel"
 	"tea.kareha.org/cup/termi"
 )
 
@@ -56,7 +55,7 @@ func newBorderImage(
 	return img
 }
 
-func Main(config *rkcel.Config) {
+func Calibrate(config *Config) {
 	termi.Raw()
 	termi.HideCursor()
 
@@ -115,7 +114,7 @@ loop:
 		termi.Clear()
 		termi.HomeCursor()
 
-		rkcel.Print(img, 27, false, false)
+		Print(img, 27, false, false)
 
 		termi.MoveCursor(6, 4)
 		fmt.Printf("* Use Arrow Keys to Fit the Rectangle to Screen *")
