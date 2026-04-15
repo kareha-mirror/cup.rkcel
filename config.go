@@ -9,16 +9,14 @@ import (
 )
 
 type Config struct {
-	CellWidth  int  `yaml:"cell-width"`
-	CellHeight int  `yaml:"cell-height"`
-	UseBottom  bool `yaml:"use-bottom"`
+	CellWidth  int `yaml:"cell-width"`
+	CellHeight int `yaml:"cell-height"`
 }
 
 func DefaultConfig() *Config {
 	return &Config{
 		CellWidth:  6,
 		CellHeight: 13,
-		UseBottom:  false,
 	}
 }
 

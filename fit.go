@@ -17,11 +17,8 @@ func resize(src image.Image, w, h int) *image.RGBA {
 
 func Fit(config *Config, img image.Image) image.Image {
 	w, h := termi.Size()
-	if !config.UseBottom {
-		h--
-	}
 	maxW := config.CellWidth * w
-	maxH := config.CellHeight * h
+	maxH := config.CellHeight * (h - 1)
 	bounds := img.Bounds()
 	imgW := bounds.Max.X - bounds.Min.X
 	imgH := bounds.Max.Y - bounds.Min.Y

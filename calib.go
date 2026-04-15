@@ -60,7 +60,6 @@ func Calibrate(config *Config) {
 	termi.HideCursor()
 
 	cw, ch := config.CellWidth, config.CellHeight
-	ub := config.UseBottom
 
 	border := 6
 	col := color.RGBA{255, 255, 0, 255}
@@ -86,27 +85,15 @@ loop:
 		w, h = termi.Size()
 		if w != prevW || h != prevH {
 			width = w * cw
-			if ub {
-				height = h * ch
-			} else {
-				height = (h - 1) * ch
-			}
+			height = (h - 1) * ch
 			prevW = w
 			prevH = h
 		}
 		cw = width / w
-		if ub {
-			ch = height / h
-		} else {
-			ch = height / (h - 1)
-		}
+		ch = height / (h - 1)
 
 		if width != prevWidth || height != prevHeight {
-			if ub {
-				img = newBorderImage(width, height, border, col, bg, cw, ch, w, h)
-			} else {
-				img = newBorderImage(width, height, border, col, bg, cw, ch, w, h-1)
-			}
+			img = newBorderImage(width, height, border, col, bg, cw, ch, w, h-1)
 			prevWidth = width
 			prevHeight = height
 		}
@@ -126,10 +113,8 @@ loop:
 		termi.MoveCursor(6, 8)
 		fmt.Printf("cw = %d, ch = %d", cw, ch)
 
-		if !ub {
-			termi.MoveCursor(0, h-1)
-			fmt.Printf("[ Bottm Line Reserved: Push B to Toggle ]")
-		}
+		termi.MoveCursor(0, h-1)
+		fmt.Printf("[ Bottm Line Reserved ]")
 
 		key := termi.ReadKey()
 		switch key.Kind {
@@ -149,14 +134,6 @@ loop:
 				width += dx * accel
 			case 'q':
 				break loop
-			case 'b':
-				ub = !ub
-
-				if ub {
-					height = h * ch
-				} else {
-					height = (h - 1) * ch
-				}
 			}
 		case termi.KeyUp:
 			height = max(64, height-dy*accel)
@@ -185,5 +162,4 @@ loop:
 
 	config.CellWidth = cw
 	config.CellHeight = ch
-	config.UseBottom = ub
 }
