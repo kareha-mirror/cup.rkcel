@@ -11,6 +11,8 @@ import (
 	"io"
 	"os"
 
+	_ "golang.org/x/image/bmp"
+	_ "golang.org/x/image/tiff"
 	_ "golang.org/x/image/webp"
 
 	"tea.kareha.org/cup/rkcel"
