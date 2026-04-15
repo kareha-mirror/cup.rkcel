@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"image"
@@ -19,8 +18,8 @@ import (
 	"tea.kareha.org/cup/rkcel"
 )
 
-func fatal(err error) {
-	fmt.Fprintln(os.Stderr, "error:", err)
+func fatalf(format string, a ...any) {
+	fmt.Fprintf(os.Stderr, format+"\n", a...)
 	os.Exit(1)
 }
 
@@ -35,8 +34,10 @@ func usage(name string) {
 	fmt.Println("  -n N: Use N colors (N: 8 - 255)")
 	fmt.Println("  -d: Disable dithering")
 	fmt.Println("  -m: Disable median cut")
-	fmt.Println("  -f: Disable fitting")
 	fmt.Println("  -c: Run calibration")
+	fmt.Println("  -f: Disable fitting")
+	fmt.Println("  -r: Reduce quality")
+	fmt.Println("  -rr: Reduce quality more")
 }
 
 func loadConfig() (string, *rkcel.Config) {
@@ -51,7 +52,10 @@ func loadConfig() (string, *rkcel.Config) {
 	if path != "" {
 		_, err := os.Stat(path)
 		if err == nil { // file exists
-			config = rkcel.LoadConfig(path)
+			config, err = rkcel.LoadConfig(path)
+			if err != nil {
+				fatalf("%v", err)
+			}
 		}
 	}
 
@@ -64,7 +68,10 @@ func calibrate() {
 	rkcel.Calibrate(config)
 
 	if path != "" {
-		rkcel.SaveConfig(path, config)
+		err := rkcel.SaveConfig(path, config)
+		if err != nil {
+			fatalf("%v", err)
+		}
 	}
 }
 
@@ -72,11 +79,11 @@ func main() {
 	numColors := flag.Int("n", 216, "number of colors used (8 - 255)")
 	noDither := flag.Bool("d", false, "disable dithering")
 	noMedian := flag.Bool("m", false, "disable median cut")
-	noFit := flag.Bool("f", false, "disable fitting")
 	runCalib := flag.Bool("c", false, "run calibration")
+	noFit := flag.Bool("f", false, "disable fitting")
+	reduce := flag.Bool("r", false, "reduce quality")
+	reduceMore := flag.Bool("rr", false, "reduce quality more")
 	flag.Parse()
-
-	var in io.Reader
 	args := flag.Args()
 
 	if *runCalib {
@@ -89,29 +96,37 @@ func main() {
 		return
 	}
 
+	if *numColors < 8 || *numColors > 255 {
+		fatalf("number of colors must be 8 - 255")
+	}
+
+	var in io.Reader
 	if args[0] == "-" {
 		in = os.Stdin
 	} else {
 		f, err := os.Open(args[0])
 		if err != nil {
-			fatal(err)
+			fatalf("%v", err)
 		}
 		defer f.Close()
 		in = f
 	}
 
-	if *numColors < 8 || *numColors > 255 {
-		fatal(errors.New("number of colors must be 8 - 255"))
-	}
-
 	img, _, err := image.Decode(in)
 	if err != nil {
-		fatal(err)
+		fatalf("%v", err)
 	}
 
 	if !*noFit {
 		_, config := loadConfig()
-		img = rkcel.Fit(config, img)
+		var r int = 0
+		if *reduce {
+			r = 1
+		}
+		if *reduceMore {
+			r = 2
+		}
+		img = rkcel.Fit(config, img, r)
 	}
 
 	rkcel.Print(img, *numColors, !*noDither, !*noMedian)

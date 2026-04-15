@@ -1,7 +1,6 @@
 package rkcel
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 
@@ -20,30 +19,33 @@ func DefaultConfig() *Config {
 	}
 }
 
-func LoadConfig(path string) *Config {
+func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		log.Fatalf("failed to load config: %v", err)
+		return nil, err
 	}
 
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		log.Fatalf("failed to parse config: %v", err)
+	err = yaml.Unmarshal(data, &cfg)
+	if err != nil {
+		return nil, err
 	}
 
-	return &cfg
+	return &cfg, nil
 }
 
-func SaveConfig(path string, config *Config) {
+func SaveConfig(path string, config *Config) error {
 	data, err := yaml.Marshal(config)
 	if err != nil {
-		log.Fatalf("failed to serialize config: %v", err)
+		return err
 	}
 
 	os.MkdirAll(filepath.Dir(path), 0755)
 
 	err = os.WriteFile(path, data, 0644)
 	if err != nil {
-		log.Fatalf("failed to save config: %v", err)
+		return err
 	}
+
+	return nil
 }
