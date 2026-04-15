@@ -14,6 +14,7 @@ func newBorderImage(
 	border int,
 	col, bg color.Color,
 	cw, ch int,
+	w, h int,
 ) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 
@@ -40,15 +41,15 @@ func newBorderImage(
 
 	for x := 0; x < width; x++ {
 		for b := 0; b < border; b++ {
-			img.Set(x, b, col)          // top
-			img.Set(x, height-1-b, col) // bottom
+			img.Set(x, b, col)        // top
+			img.Set(x, ch*h-1-b, col) // bottom
 		}
 	}
 
 	for y := 0; y < height; y++ {
 		for b := 0; b < border; b++ {
-			img.Set(b, y, col)         // left
-			img.Set(width-1-b, y, col) // right
+			img.Set(b, y, col)        // left
+			img.Set(cw*w-1-b, y, col) // right
 		}
 	}
 
@@ -60,40 +61,55 @@ func Main(config *rkcel.Config) {
 	termi.HideCursor()
 
 	cw, ch := config.CellWidth, config.CellHeight
+	ub := config.UseBottom
 
-	width := 80 * cw
-	height := 24 * ch
-
-	border := 4
+	border := 6
 	col := color.RGBA{255, 255, 0, 255}
 	bg := color.RGBA{0, 128, 0, 255}
 
-	dx := 4
-	dy := 4
+	dx := 1
+	dy := 1
 	accel := 1
 	hasPrev := false
 	var prevKey termi.KeyKind
 	var prevRune rune
 
 	var img *image.RGBA
-	prevW, prevH := -1, -1
+	prevWidth, prevHeight := -1, -1
 
 	w, h := termi.Size()
+	prevW, prevH := -1, -1
+
+	width, height := -1, -1
 
 loop:
 	for {
 		w, h = termi.Size()
-		if w > 0 {
-			cw = width / w
+		if w != prevW || h != prevH {
+			width = w * cw
+			if ub {
+				height = h * ch
+			} else {
+				height = (h - 1) * ch
+			}
+			prevW = w
+			prevH = h
 		}
-		if h > 0 {
+		cw = width / w
+		if ub {
 			ch = height / h
+		} else {
+			ch = height / (h - 1)
 		}
 
-		if width != prevW || height != prevH {
-			img = newBorderImage(width, height, border, col, bg, cw, ch)
-			prevW = width
-			prevH = height
+		if width != prevWidth || height != prevHeight {
+			if ub {
+				img = newBorderImage(width, height, border, col, bg, cw, ch, w, h)
+			} else {
+				img = newBorderImage(width, height, border, col, bg, cw, ch, w, h-1)
+			}
+			prevWidth = width
+			prevHeight = height
 		}
 
 		termi.Clear()
@@ -104,12 +120,17 @@ loop:
 		termi.MoveCursor(6, 4)
 		fmt.Printf("* Use Arrow Keys to Fit the Rectangle to Screen *")
 		termi.MoveCursor(6, 5)
-		fmt.Printf("               * Push Enter to Exit *")
+		fmt.Printf("             * Push Enter to Exit *              ")
 
 		termi.MoveCursor(6, 7)
 		fmt.Printf("width = %d, height = %d", width, height)
 		termi.MoveCursor(6, 8)
 		fmt.Printf("cw = %d, ch = %d", cw, ch)
+
+		if !ub {
+			termi.MoveCursor(0, h-1)
+			fmt.Printf("[ Bottm Line Reserved: Push B to Toggle ]")
+		}
 
 		key := termi.ReadKey()
 		switch key.Kind {
@@ -129,6 +150,14 @@ loop:
 				width += dx * accel
 			case 'q':
 				break loop
+			case 'b':
+				ub = !ub
+
+				if ub {
+					height = h * ch
+				} else {
+					height = (h - 1) * ch
+				}
 			}
 		case termi.KeyUp:
 			height = max(64, height-dy*accel)
@@ -141,7 +170,7 @@ loop:
 		}
 
 		if hasPrev && prevKey == key.Kind && prevRune == key.Rune {
-			accel = min(6, accel+1)
+			accel = min(16, accel+1)
 		} else {
 			accel = 1
 		}
@@ -157,5 +186,5 @@ loop:
 
 	config.CellWidth = cw
 	config.CellHeight = ch
-	//config.UseBottom = ?
+	config.UseBottom = ub
 }
