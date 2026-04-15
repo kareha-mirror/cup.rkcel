@@ -9,32 +9,42 @@ import (
 	"tea.kareha.org/cup/termi"
 )
 
-func resize(src image.Image, w, h int, reduce int) *image.RGBA {
+type FitMethod int
+
+const (
+	FitCatmullRom FitMethod = iota
+	FitApproxBilinear
+	FitNearestNeighbor
+)
+
+func resize(src image.Image, w, h int, method FitMethod) *image.RGBA {
 	dst := image.NewRGBA(image.Rect(0, 0, w, h))
-	switch reduce {
-	case 2:
-		xdraw.NearestNeighbor.Scale(
-			dst, dst.Bounds(),
-			src, src.Bounds(),
-			draw.Over, nil,
-		)
-	case 1:
-		xdraw.ApproxBiLinear.Scale(
-			dst, dst.Bounds(),
-			src, src.Bounds(),
-			draw.Over, nil,
-		)
-	default:
+	switch method {
+	case FitCatmullRom:
 		xdraw.CatmullRom.Scale(
 			dst, dst.Bounds(),
 			src, src.Bounds(),
 			draw.Over, nil,
 		)
+	case FitApproxBilinear:
+		xdraw.ApproxBiLinear.Scale(
+			dst, dst.Bounds(),
+			src, src.Bounds(),
+			draw.Over, nil,
+		)
+	case FitNearestNeighbor:
+		xdraw.NearestNeighbor.Scale(
+			dst, dst.Bounds(),
+			src, src.Bounds(),
+			draw.Over, nil,
+		)
+	default:
+		// TODO error
 	}
 	return dst
 }
 
-func Fit(config *Config, img image.Image, reduce int) image.Image {
+func Fit(config *Config, img image.Image, method FitMethod) image.Image {
 	w, h := termi.Size()
 	maxW := config.CellWidth * w
 	maxH := config.CellHeight * (h - 1)
@@ -48,6 +58,6 @@ func Fit(config *Config, img image.Image, reduce int) image.Image {
 	return resize(
 		img,
 		int(float32(imgW)*scale), int(float32(imgH)*scale),
-		reduce,
+		method,
 	)
 }
