@@ -36,8 +36,8 @@ func usage(name string) {
 	fmt.Println("  -m: Disable median cut")
 	fmt.Println("  -c: Run calibration")
 	fmt.Println("  -f: Disable fitting")
-	fmt.Println("  -fb: Approximate bilinear interpolation")
-	fmt.Println("  -fn: Nearest neighbor interpolation")
+	fmt.Println("  -sb: Approximate bilinear scaling")
+	fmt.Println("  -sn: Nearest neighbor scaling")
 }
 
 func loadConfig() (string, *rkcel.Config) {
@@ -81,11 +81,11 @@ func main() {
 	noMedian := flag.Bool("m", false, "disable median cut")
 	runCalib := flag.Bool("c", false, "run calibration")
 	noFit := flag.Bool("f", false, "disable fitting")
-	fitApproxBilinear := flag.Bool(
-		"fb", false, "approximate bilinear interpolation",
+	scaleApproxBilinear := flag.Bool(
+		"sb", false, "approximate bilinear scaling",
 	)
-	fitNearestNeighbor := flag.Bool(
-		"fn", false, "nearest neighbor interpolation",
+	scaleNearestNeighbor := flag.Bool(
+		"sn", false, "nearest neighbor scaling",
 	)
 	flag.Parse()
 	args := flag.Args()
@@ -123,12 +123,12 @@ func main() {
 
 	if !*noFit {
 		_, config := loadConfig()
-		var method rkcel.FitMethod = rkcel.FitCatmullRom
-		if *fitApproxBilinear {
-			method = rkcel.FitApproxBilinear
+		var method rkcel.ScaleMethod = rkcel.ScaleCatmullRom
+		if *scaleApproxBilinear {
+			method = rkcel.ScaleApproxBilinear
 		}
-		if *fitNearestNeighbor {
-			method = rkcel.FitNearestNeighbor
+		if *scaleNearestNeighbor {
+			method = rkcel.ScaleNearestNeighbor
 		}
 		img = rkcel.Fit(config, img, method)
 	}
