@@ -19,6 +19,11 @@ func DefaultConfig() *Config {
 	}
 }
 
+func sanitizeConfig(cfg *Config) {
+	cfg.CellWidth = max(cfg.CellWidth, 1)
+	cfg.CellHeight = max(cfg.CellHeight, 1)
+}
+
 func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -31,11 +36,13 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
+	sanitizeConfig(&cfg)
 	return &cfg, nil
 }
 
-func SaveConfig(path string, config *Config) error {
-	data, err := yaml.Marshal(config)
+func SaveConfig(path string, cfg *Config) error {
+	sanitizeConfig(cfg)
+	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return err
 	}
@@ -63,7 +70,7 @@ func UserConfigPath() (string, error) {
 }
 
 func LoadUserConfig() (*Config, error) {
-	config := DefaultConfig()
+	cfg := DefaultConfig()
 
 	path, err := UserConfigPath()
 	if err != nil {
@@ -71,19 +78,19 @@ func LoadUserConfig() (*Config, error) {
 	}
 	_, err = os.Stat(path)
 	if err == nil { // file exists
-		config, err = LoadConfig(path)
+		cfg, err = LoadConfig(path)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return config, nil
+	return cfg, nil
 }
 
-func SaveUserConfig(config *Config) error {
+func SaveUserConfig(cfg *Config) error {
 	path, err := UserConfigPath()
 	if err != nil {
 		return err
 	}
-	return SaveConfig(path, config)
+	return SaveConfig(path, cfg)
 }

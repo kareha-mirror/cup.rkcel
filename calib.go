@@ -8,92 +8,103 @@ import (
 	"tea.kareha.org/cup/termi"
 )
 
+var fgColor = color.RGBA{255, 255, 0, 255}
+var bgColor = color.RGBA{0, 0, 255, 255}
+var gridColor = color.RGBA{0, 255, 0, 255}
+
+const borderSize = 6
+
+const maxAccel = 16
+const minSize = borderSize * 3
+
 func newBorderImage(
 	width, height int,
-	border int,
-	col, bg color.Color,
-	cw, ch int,
-	w, h int,
+	cellW, cellH int,
+	cols, rows int,
 ) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 
+	// background fill
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
-			img.Set(x, y, bg)
+			img.Set(x, y, bgColor)
 		}
 	}
 
-	if cw > 0 && ch > 0 {
-		for y := 0; y < height; y += ch {
-			for x := 0; x < width; x += cw {
-				img.Set(x, y, col)
+	// grid dots
+	if cellW > 0 && cellH > 0 {
+		for y := 0; y < height; y += cellH {
+			for x := 0; x < width; x += cellW {
+				img.Set(x, y, gridColor)
 			}
 		}
 	}
 
+	// cross
+	h := cellH * rows
 	for x := 0; x < width; x++ {
-		img.Set(x, height/2, col)
+		img.Set(x, h/2, fgColor)
 	}
+	w := cellW * cols
 	for y := 0; y < height; y++ {
-		img.Set(width/2, y, col)
+		img.Set(w/2, y, fgColor)
 	}
 
+	// borders
 	for x := 0; x < width; x++ {
-		for b := 0; b < border; b++ {
-			img.Set(x, b, col)        // top
-			img.Set(x, ch*h-1-b, col) // bottom
+		for b := 0; b < borderSize; b++ {
+			img.Set(x, b, fgColor)              // top
+			img.Set(x, cellH*rows-1-b, fgColor) // bottom
 		}
 	}
 
+	// borders
 	for y := 0; y < height; y++ {
-		for b := 0; b < border; b++ {
-			img.Set(b, y, col)        // left
-			img.Set(cw*w-1-b, y, col) // right
+		for b := 0; b < borderSize; b++ {
+			img.Set(b, y, fgColor)              // left
+			img.Set(cellW*cols-1-b, y, fgColor) // right
 		}
 	}
 
 	return img
 }
 
-func Calibrate(config *Config) {
+func Calibrate(cfg *Config) {
 	termi.Raw()
 	termi.HideCursor()
 
-	cw, ch := config.CellWidth, config.CellHeight
+	cellW, cellH := cfg.CellWidth, cfg.CellHeight
 
-	border := 6
-	col := color.RGBA{255, 255, 0, 255}
-	bg := color.RGBA{0, 128, 0, 255}
+	var cols, rows int
+	prevCols, prevRows := -1, -1
 
-	dx := 1
-	dy := 1
+	var width, height int
+	prevWidth, prevHeight := -1, -1
+
+	var img *image.RGBA
+
 	accel := 1
+
 	hasPrev := false
 	var prevKey termi.KeyKind
 	var prevRune rune
 
-	var img *image.RGBA
-	prevWidth, prevHeight := -1, -1
-
-	w, h := termi.Size()
-	prevW, prevH := -1, -1
-
-	width, height := -1, -1
-
 loop:
 	for {
-		w, h = termi.Size()
-		if w != prevW || h != prevH {
-			width = w * cw
-			height = (h - 1) * ch
-			prevW = w
-			prevH = h
+		cols, rows = termi.Size()
+		if cols != prevCols || rows != prevRows {
+			width = cellW * cols
+			height = cellH * (rows - 1)
+			prevCols = cols
+			prevRows = rows
 		}
-		cw = width / w
-		ch = height / (h - 1)
+		cellW = width / cols
+		if rows > 1 {
+			cellH = height / (rows - 1)
+		}
 
 		if width != prevWidth || height != prevHeight {
-			img = newBorderImage(width, height, border, col, bg, cw, ch, w, h-1)
+			img = newBorderImage(width, height, cellW, cellH, cols, rows-1)
 			prevWidth = width
 			prevHeight = height
 		}
@@ -101,19 +112,16 @@ loop:
 		termi.Clear()
 		termi.HomeCursor()
 
-		Print(img, 27, false, false)
+		Print(img, 8, false, false)
 
-		termi.MoveCursor(6, 4)
+		termi.MoveCursor(2, 1)
 		fmt.Printf("* Use Arrow Keys to Fit the Rectangle to Screen *")
-		termi.MoveCursor(6, 5)
+		termi.MoveCursor(2, 2)
 		fmt.Printf("             * Push Enter to Exit *              ")
+		termi.MoveCursor(10, 4)
+		fmt.Printf("CellWidth = %d, CellHeight = %d", cellW, cellH)
 
-		termi.MoveCursor(6, 7)
-		fmt.Printf("width = %d, height = %d", width, height)
-		termi.MoveCursor(6, 8)
-		fmt.Printf("cw = %d, ch = %d", cw, ch)
-
-		termi.MoveCursor(0, h-1)
+		termi.MoveCursor(0, rows-1)
 		fmt.Printf("[ Bottm Line Reserved ]")
 
 		key := termi.ReadKey()
@@ -125,28 +133,28 @@ loop:
 			case termi.RuneEnter:
 				break loop
 			case 'h':
-				width = max(64, width-dx*accel)
+				width = max(minSize, width-accel)
 			case 'j':
-				height += dy * accel
+				height += accel
 			case 'k':
-				height = max(64, height-dy*accel)
+				height = max(minSize, height-accel)
 			case 'l':
-				width += dx * accel
+				width += accel
 			case 'q':
 				break loop
 			}
 		case termi.KeyUp:
-			height = max(64, height-dy*accel)
+			height = max(minSize, height-accel)
 		case termi.KeyDown:
-			height += dy * accel
+			height += accel
 		case termi.KeyRight:
-			width += dx * accel
+			width += accel
 		case termi.KeyLeft:
-			width = max(64, width-dx*accel)
+			width = max(minSize, width-accel)
 		}
 
 		if hasPrev && prevKey == key.Kind && prevRune == key.Rune {
-			accel = min(16, accel+1)
+			accel = min(maxAccel, accel+1)
 		} else {
 			accel = 1
 		}
@@ -160,17 +168,17 @@ loop:
 	termi.Cooked()
 	termi.ShowCursor()
 
-	config.CellWidth = cw
-	config.CellHeight = ch
+	cfg.CellWidth = cellW
+	cfg.CellHeight = cellH
 }
 
 func UserCalibrate() error {
-	config, err := LoadUserConfig()
+	cfg, err := LoadUserConfig()
 	if err != nil {
 		return err
 	}
 
-	Calibrate(config)
+	Calibrate(cfg)
 
-	return SaveUserConfig(config)
+	return SaveUserConfig(cfg)
 }

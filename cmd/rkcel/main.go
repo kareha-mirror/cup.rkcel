@@ -90,13 +90,13 @@ func main() {
 	}
 
 	if !*noFit {
-		config, err := rkcel.LoadUserConfig()
+		cfg, err := rkcel.LoadUserConfig()
 		if err != nil {
 			fatal(err)
 		}
 		w, h := termi.Size()
-		maxW := config.CellWidth * w
-		maxH := config.CellHeight * (h - 1)
+		maxW := cfg.CellWidth * w
+		maxH := cfg.CellHeight * (h - 1)
 		size := img.Bounds().Size()
 		if size.X > maxW || size.Y > maxH {
 			var method = rkcel.CatmullRom
