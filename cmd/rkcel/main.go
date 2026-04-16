@@ -16,28 +16,31 @@ import (
 	_ "golang.org/x/image/webp"
 
 	"tea.kareha.org/cup/rkcel"
+	"tea.kareha.org/cup/termi"
 )
 
-func fatalf(format string, a ...any) {
-	fmt.Fprintf(os.Stderr, format+"\n", a...)
+func fatal(err error) {
+	fmt.Fprintln(os.Stderr, err)
 	os.Exit(1)
 }
 
 func usage(name string) {
-	fmt.Println("Roku-Cell - An Sixel Image Viewer")
-	fmt.Println()
-	fmt.Printf("Usage: %s [OPTIONS] PATH\n", name)
-	fmt.Println()
-	fmt.Println("PATH: Filename of image file")
-	fmt.Println("      (BMP, GIF, JPEG, PNG, TIFF, WebP)")
-	fmt.Println("OPTIONS:")
-	fmt.Println("  -n N: Use N colors (N: 8 - 255)")
-	fmt.Println("  -d: Disable dithering")
-	fmt.Println("  -m: Disable median cut")
-	fmt.Println("  -c: Run calibration")
-	fmt.Println("  -f: Disable fitting")
-	fmt.Println("  -sb: Approximate bilinear scaling")
-	fmt.Println("  -sn: Nearest neighbor scaling")
+	fmt.Printf(`Roku-Cell - An Sixel Image Viewer
+
+Usage: %s [OPTIONS] PATH
+
+PATH: Filename of image file
+      (BMP, GIF, JPEG, PNG, TIFF, WebP)
+OPTIONS:
+  -n N: Use N colors (N: max 255)
+  -d: Disable dithering
+  -m: Disable median cut
+  -c: Run calibration
+  -f: Disable fitting
+  -sb: Approximate bilinear scaling
+  -sn: Nearest neighbor scaling
+  -cover: Cover fitting
+`, name)
 }
 
 func loadConfig() (string, *rkcel.Config) {
@@ -54,7 +57,7 @@ func loadConfig() (string, *rkcel.Config) {
 		if err == nil { // file exists
 			config, err = rkcel.LoadConfig(path)
 			if err != nil {
-				fatalf("%v", err)
+				fatal(err)
 			}
 		}
 	}
@@ -70,13 +73,13 @@ func calibrate() {
 	if path != "" {
 		err := rkcel.SaveConfig(path, config)
 		if err != nil {
-			fatalf("%v", err)
+			fatal(err)
 		}
 	}
 }
 
 func main() {
-	numColors := flag.Int("n", 216, "number of colors used (8 - 255)")
+	numColors := flag.Int("n", 255, "number of colors used (max 255)")
 	noDither := flag.Bool("d", false, "disable dithering")
 	noMedian := flag.Bool("m", false, "disable median cut")
 	runCalib := flag.Bool("c", false, "run calibration")
@@ -87,6 +90,8 @@ func main() {
 	scaleNearestNeighbor := flag.Bool(
 		"sn", false, "nearest neighbor scaling",
 	)
+	cover := flag.Bool("cover", false, "cover fitting")
+
 	flag.Parse()
 	args := flag.Args()
 
@@ -100,17 +105,13 @@ func main() {
 		return
 	}
 
-	if *numColors < 8 || *numColors > 255 {
-		fatalf("number of colors must be 8 - 255")
-	}
-
 	var in io.Reader
 	if args[0] == "-" {
 		in = os.Stdin
 	} else {
 		f, err := os.Open(args[0])
 		if err != nil {
-			fatalf("%v", err)
+			fatal(err)
 		}
 		defer f.Close()
 		in = f
@@ -118,19 +119,29 @@ func main() {
 
 	img, _, err := image.Decode(in)
 	if err != nil {
-		fatalf("%v", err)
+		fatal(err)
 	}
 
 	if !*noFit {
 		_, config := loadConfig()
-		var method rkcel.ScaleMethod = rkcel.ScaleCatmullRom
-		if *scaleApproxBilinear {
-			method = rkcel.ScaleApproxBilinear
+		w, h := termi.Size()
+		maxW := config.CellWidth * w
+		maxH := config.CellHeight * (h - 1)
+		size := img.Bounds().Size()
+		if size.X > maxW || size.Y > maxH {
+			var method = rkcel.CatmullRom
+			if *scaleApproxBilinear {
+				method = rkcel.ApproxBilinear
+			}
+			if *scaleNearestNeighbor {
+				method = rkcel.NearestNeighbor
+			}
+			if *cover {
+				img = rkcel.Cover(img, maxW, maxH, method)
+			} else {
+				img = rkcel.Contain(img, maxW, maxH, method)
+			}
 		}
-		if *scaleNearestNeighbor {
-			method = rkcel.ScaleNearestNeighbor
-		}
-		img = rkcel.Fit(config, img, method)
 	}
 
 	rkcel.Print(img, *numColors, !*noDither, !*noMedian)

@@ -25,6 +25,9 @@ func cbrt8(n int) int {
 
 func flatPal(colors int) []color.Color {
 	n := cbrt8(colors)
+	if n < 2 {
+		n = 2
+	}
 	var pal []color.Color = make([]color.Color, n*n*n)
 	for r := 0; r < n; r++ {
 		for g := 0; g < n; g++ {
@@ -50,7 +53,7 @@ func Fprint(
 	rect := img.Bounds()
 	var pal []color.Color
 	if median {
-		pal = MedianCut(img, colors)
+		pal = MedianCut(img, min(colors, 255))
 	} else {
 		pal = flatPal(colors)
 	}
