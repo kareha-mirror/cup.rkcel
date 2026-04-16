@@ -19,13 +19,13 @@ import (
 	"tea.kareha.org/cup/termi"
 )
 
-func fatal(err error) {
-	fmt.Fprintln(os.Stderr, err)
+func fatal(a ...any) {
+	fmt.Fprintln(os.Stderr, a...)
 	os.Exit(1)
 }
 
 func usage(name string) {
-	fmt.Printf(`Roku-Cell - An Sixel Image Viewer
+	fmt.Printf(`Roku-Cell - A Sixel Image Viewer
 
 Usage: %s [OPTIONS] PATH
 
@@ -67,14 +67,15 @@ func loadConfig() (string, *rkcel.Config) {
 
 func calibrate() {
 	path, config := loadConfig()
+	if path == "" {
+		fatal("cannot access to config directory")
+	}
 
 	rkcel.Calibrate(config)
 
-	if path != "" {
-		err := rkcel.SaveConfig(path, config)
-		if err != nil {
-			fatal(err)
-		}
+	err := rkcel.SaveConfig(path, config)
+	if err != nil {
+		fatal(err)
 	}
 }
 
