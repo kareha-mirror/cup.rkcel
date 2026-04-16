@@ -8,106 +8,125 @@ import (
 type Encoder struct {
 	w io.Writer
 
-	color   int
-	found   bool
-	current int
-	count   int
+	index int
+	found bool
+	six   int
+	count int
 }
 
 func NewEncoder(w io.Writer) *Encoder {
 	return &Encoder{
 		w: w,
 
-		color:   -1,
-		found:   false,
-		current: -1,
-		count:   0,
+		index: -1,
+		found: false,
+		six:   -1,
+		count: 0,
 	}
 }
 
-func (enc *Encoder) Start() {
-	enc.FlushLine()
-
-	fmt.Fprint(enc.w, "\x1bPq")
+func (enc *Encoder) Start() error {
+	err := enc.flushLine()
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprint(enc.w, "\x1bPq")
+	return err
 }
 
-func (enc *Encoder) End() {
-	enc.FlushLine()
-
-	fmt.Fprint(enc.w, "\x1b\\")
-
-	enc.color = -1
+func (enc *Encoder) End() error {
+	err := enc.flushLine()
+	if err == nil {
+		_, err = fmt.Fprint(enc.w, "\x1b\\")
+	}
+	enc.index = -1
+	return err
 }
 
-func (enc *Encoder) Return() {
-	enc.FlushLine()
-
-	fmt.Fprint(enc.w, "$")
+func (enc *Encoder) CarriageReturn() error {
+	err := enc.flushLine()
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprint(enc.w, "$")
+	return err
 }
 
-func (enc *Encoder) Newline() {
-	enc.FlushLine()
-
-	fmt.Fprint(enc.w, "-")
+func (enc *Encoder) LineFeed() error {
+	err := enc.flushLine()
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprint(enc.w, "-")
+	return err
 }
 
-func (enc *Encoder) Palette(i, r, g, b int) {
+func (enc *Encoder) SetPalette(idx, r, g, b int) error {
 	pr := 100 * r / 255
 	pg := 100 * g / 255
 	pb := 100 * b / 255
-	fmt.Fprintf(enc.w, "#%d;2;%d;%d;%d", i, pr, pg, pb)
+	_, err := fmt.Fprintf(enc.w, "#%d;2;%d;%d;%d", idx, pr, pg, pb)
+	return err
 }
 
-func (enc *Encoder) Color(i int) {
-	enc.color = i
+func (enc *Encoder) SetIndex(idx int) error {
+	enc.index = idx
+	return nil
 }
 
-func (enc *Encoder) Put(c int) {
-	if c == enc.current {
+func (enc *Encoder) PutSixel(s int) error {
+	if s == enc.six {
 		enc.count++
-		return
+		return nil
 	} else {
-		enc.Flush()
+		err := enc.flush()
 
-		enc.current = c
+		enc.six = s
 		enc.count = 1
 
-		if c != 0 {
+		if s != 0 {
 			if !enc.found {
-				fmt.Fprintf(enc.w, "#%d", enc.color)
+				if err == nil {
+					_, err = fmt.Fprintf(enc.w, "#%d", enc.index)
+				}
 			}
 			enc.found = true
 		}
+
+		return err
 	}
 }
 
-func (enc *Encoder) Flush() {
-	c := enc.current + 63
+func (enc *Encoder) flush() error {
+	c := enc.six + 63
 
-	if enc.count > 3 {
-		fmt.Fprintf(enc.w, "!%d%c", enc.count, c)
-	} else {
-		switch enc.count {
-		case 3:
-			fmt.Fprintf(enc.w, "%c%c%c", c, c, c)
-		case 2:
-			fmt.Fprintf(enc.w, "%c%c", c, c)
-		case 1:
-			fmt.Fprintf(enc.w, "%c", c)
-		}
+	var err error
+	switch enc.count {
+	case 0:
+	case 1:
+		_, err = fmt.Fprintf(enc.w, "%c", c)
+	case 2:
+		_, err = fmt.Fprintf(enc.w, "%c%c", c, c)
+	case 3:
+		_, err = fmt.Fprintf(enc.w, "%c%c%c", c, c, c)
+	default:
+		_, err = fmt.Fprintf(enc.w, "!%d%c", enc.count, c)
 	}
 
-	enc.current = -1
+	enc.six = -1
 	enc.count = 0
+
+	return err
 }
 
-func (enc *Encoder) FlushLine() {
+func (enc *Encoder) flushLine() error {
+	var err error
 	if enc.found {
-		enc.Flush()
-
+		err = enc.flush()
 		enc.found = false
 	} else {
-		enc.current = -1
+		enc.six = -1
 		enc.count = 0
 	}
+	return err
 }

@@ -10,8 +10,8 @@ import (
 	"sort"
 )
 
-func Print(img image.Image, colors int, dither bool, median bool) {
-	Fprint(os.Stdout, img, colors, dither, median)
+func Print(img image.Image, numColors int, dither bool, median bool) error {
+	return Fprint(os.Stdout, img, numColors, dither, median)
 }
 
 func cbrt8(n int) int {
@@ -23,60 +23,67 @@ func cbrt8(n int) int {
 	return 6
 }
 
-func flatPal(colors int) []color.Color {
-	n := cbrt8(colors)
+func createPalette(numColors int) []color.Color {
+	n := cbrt8(numColors)
 	if n < 2 {
 		n = 2
 	}
-	var pal []color.Color = make([]color.Color, n*n*n)
+	palette := make([]color.Color, n*n*n)
+	k := 255 / (n - 1)
+	idx := 0
 	for r := 0; r < n; r++ {
 		for g := 0; g < n; g++ {
 			for b := 0; b < n; b++ {
-				i := r*n*n + g*n + b
-				k := 255 / (n - 1)
-				pal[i] = color.RGBA{
+				palette[idx] = color.RGBA{
 					uint8(r * k), uint8(g * k), uint8(b * k), 255,
 				}
+				idx++
 			}
 		}
 	}
-	return pal
+	return palette
 }
 
 func Fprint(
 	w io.Writer,
 	img image.Image,
-	colors int,
+	numColors int,
 	dither bool,
 	median bool,
-) {
-	rect := img.Bounds()
-	var pal []color.Color
+) error {
+	var palette []color.Color
 	if median {
-		pal = MedianCut(img, min(colors, 255))
+		palette = MedianCut(img, min(numColors, 255))
 	} else {
-		pal = flatPal(colors)
+		palette = createPalette(numColors)
 	}
-	dst := image.NewPaletted(rect, pal)
+
+	bounds := img.Bounds()
+	dst := image.NewPaletted(bounds, palette)
 	if dither {
-		draw.FloydSteinberg.Draw(dst, rect, img, rect.Min)
+		draw.FloydSteinberg.Draw(dst, bounds, img, bounds.Min)
 	} else {
-		draw.Draw(dst, rect, img, rect.Min, draw.Src)
+		draw.Draw(dst, bounds, img, bounds.Min, draw.Src)
 	}
 
 	bw := bufio.NewWriter(w)
-	defer bw.Flush()
-
 	enc := NewEncoder(bw)
 
-	enc.Start()
-	for c, p := range pal {
-		r, g, b, _ := p.RGBA()
-		enc.Palette(c, int(r>>8), int(g>>8), int(b>>8))
+	err := enc.Start()
+	if err != nil {
+		return err
+	}
+	for idx, color := range palette {
+		r, g, b, _ := color.RGBA()
+		err = enc.SetPalette(idx, int(r>>8), int(g>>8), int(b>>8))
+		if err != nil {
+			return err
+		}
 	}
 
-	width := rect.Max.X - rect.Min.X
-	height := rect.Max.Y - rect.Min.Y
+	size := bounds.Size()
+	width := size.X
+	height := size.Y
 
 	for y := 0; y < height; y += 6 {
 		used := map[int]bool{}
@@ -87,43 +94,61 @@ func Fprint(
 				break
 			}
 
-			for x := 0; x < width; x++ {
-				c := dst.ColorIndexAt(x, yy)
+			row := dst.Pix[yy*dst.Stride : yy*dst.Stride+width]
+			for _, c := range row {
 				used[int(c)] = true
 			}
 		}
 
-		cols := make([]int, 0, len(used))
-		for c := range used {
-			cols = append(cols, c)
+		idxes := make([]int, 0, len(used))
+		for idx := range used {
+			idxes = append(idxes, idx)
 		}
-		sort.Ints(cols)
+		sort.Ints(idxes)
 
-		for _, col := range cols {
-			enc.Color(col)
+		for _, idx := range idxes {
+			err = enc.SetIndex(idx)
+			if err != nil {
+				return err
+			}
 
+			maxdy := 6
+			if y+6 > height {
+				maxdy = height - y
+			}
 			for x := 0; x < width; x++ {
-
 				var six byte = 0
+				k := y*dst.Stride + x
 
-				for dy := 0; dy < 6; dy++ {
-					yy := y + dy
-					if yy >= height {
-						break
-					}
-
-					c := dst.ColorIndexAt(x, yy)
-					if int(c) == col {
+				for dy := 0; dy < maxdy; dy++ {
+					if dst.Pix[k] == uint8(idx) {
 						six |= 1 << dy
 					}
+					k += dst.Stride
 				}
 
-				enc.Put(int(six))
+				err = enc.PutSixel(int(six))
+				if err != nil {
+					return err
+				}
 			}
-			enc.Return()
+
+			err = enc.CarriageReturn()
+			if err != nil {
+				return err
+			}
 		}
-		enc.Newline()
+
+		err = enc.LineFeed()
+		if err != nil {
+			return err
+		}
 	}
 
-	enc.End()
+	err = enc.End()
+	if err != nil {
+		return err
+	}
+
+	return bw.Flush()
 }

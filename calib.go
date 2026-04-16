@@ -163,3 +163,14 @@ loop:
 	config.CellWidth = cw
 	config.CellHeight = ch
 }
+
+func UserCalibrate() error {
+	config, err := LoadUserConfig()
+	if err != nil {
+		return err
+	}
+
+	Calibrate(config)
+
+	return SaveUserConfig(config)
+}

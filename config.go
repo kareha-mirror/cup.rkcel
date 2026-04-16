@@ -40,12 +40,50 @@ func SaveConfig(path string, config *Config) error {
 		return err
 	}
 
-	os.MkdirAll(filepath.Dir(path), 0755)
+	err = os.MkdirAll(filepath.Dir(path), 0777)
+	if err != nil {
+		return err
+	}
 
-	err = os.WriteFile(path, data, 0644)
+	err = os.WriteFile(path, data, 0666)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func UserConfigPath() (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, "rkcel", "config.yaml")
+	return path, nil
+}
+
+func LoadUserConfig() (*Config, error) {
+	config := DefaultConfig()
+
+	path, err := UserConfigPath()
+	if err != nil {
+		return nil, err
+	}
+	_, err = os.Stat(path)
+	if err == nil { // file exists
+		config, err = LoadConfig(path)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return config, nil
+}
+
+func SaveUserConfig(config *Config) error {
+	path, err := UserConfigPath()
+	if err != nil {
+		return err
+	}
+	return SaveConfig(path, config)
 }

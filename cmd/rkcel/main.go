@@ -9,7 +9,6 @@ import (
 	_ "image/png"
 	"io"
 	"os"
-	"path/filepath"
 
 	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/tiff"
@@ -43,42 +42,6 @@ OPTIONS:
 `, name)
 }
 
-func loadConfig() (string, *rkcel.Config) {
-	config := rkcel.DefaultConfig()
-
-	var path string
-	dir, err := os.UserConfigDir()
-	if err == nil {
-		path = filepath.Join(dir, "rkcel", "config.yaml")
-	}
-
-	if path != "" {
-		_, err := os.Stat(path)
-		if err == nil { // file exists
-			config, err = rkcel.LoadConfig(path)
-			if err != nil {
-				fatal(err)
-			}
-		}
-	}
-
-	return path, config
-}
-
-func calibrate() {
-	path, config := loadConfig()
-	if path == "" {
-		fatal("cannot access to config directory")
-	}
-
-	rkcel.Calibrate(config)
-
-	err := rkcel.SaveConfig(path, config)
-	if err != nil {
-		fatal(err)
-	}
-}
-
 func main() {
 	numColors := flag.Int("n", 255, "number of colors used (max 255)")
 	noDither := flag.Bool("d", false, "disable dithering")
@@ -97,7 +60,10 @@ func main() {
 	args := flag.Args()
 
 	if *runCalib {
-		calibrate()
+		err := rkcel.UserCalibrate()
+		if err != nil {
+			fatal(err)
+		}
 		return
 	}
 
@@ -124,7 +90,10 @@ func main() {
 	}
 
 	if !*noFit {
-		_, config := loadConfig()
+		config, err := rkcel.LoadUserConfig()
+		if err != nil {
+			fatal(err)
+		}
 		w, h := termi.Size()
 		maxW := config.CellWidth * w
 		maxH := config.CellHeight * (h - 1)
@@ -138,13 +107,16 @@ func main() {
 				method = rkcel.NearestNeighbor
 			}
 			if *cover {
-				img = rkcel.Cover(img, maxW, maxH, method)
+				img = rkcel.FitCover(img, maxW, maxH, method)
 			} else {
-				img = rkcel.Contain(img, maxW, maxH, method)
+				img = rkcel.FitContain(img, maxW, maxH, method)
 			}
 		}
 	}
 
-	rkcel.Print(img, *numColors, !*noDither, !*noMedian)
+	err = rkcel.Print(img, *numColors, !*noDither, !*noMedian)
+	if err != nil {
+		fatal(err)
+	}
 	fmt.Print("\n")
 }

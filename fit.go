@@ -16,26 +16,29 @@ const (
 )
 
 func resize(
-	src image.Image, bounds image.Rectangle, w, h int, method Method,
+	src image.Image,
+	srcBounds image.Rectangle,
+	dstBounds image.Rectangle,
+	method Method,
 ) *image.RGBA {
-	dst := image.NewRGBA(image.Rect(0, 0, w, h))
+	dst := image.NewRGBA(dstBounds)
 	switch method {
 	case CatmullRom:
 		xdraw.CatmullRom.Scale(
-			dst, dst.Bounds(),
-			src, bounds,
+			dst, dstBounds,
+			src, srcBounds,
 			draw.Over, nil,
 		)
 	case ApproxBilinear:
 		xdraw.ApproxBiLinear.Scale(
-			dst, dst.Bounds(),
-			src, bounds,
+			dst, dstBounds,
+			src, srcBounds,
 			draw.Over, nil,
 		)
 	case NearestNeighbor:
 		xdraw.NearestNeighbor.Scale(
-			dst, dst.Bounds(),
-			src, bounds,
+			dst, dstBounds,
+			src, srcBounds,
 			draw.Over, nil,
 		)
 	default:
@@ -44,45 +47,45 @@ func resize(
 	return dst
 }
 
-func Contain(img image.Image, w, h int, method Method) image.Image {
-	size := img.Bounds().Size()
+func FitContain(img image.Image, w, h int, method Method) image.Image {
+	bounds := img.Bounds()
+	size := bounds.Size()
+
 	scale := min(float32(w)/float32(size.X), float32(h)/float32(size.Y))
-	return resize(
-		img,
-		img.Bounds(),
-		int(float32(size.X)*scale), int(float32(size.Y)*scale),
-		method,
+	dstBounds := image.Rect(
+		0, 0, int(float32(size.X)*scale), int(float32(size.Y)*scale),
 	)
+
+	return resize(img, bounds, dstBounds, method)
 }
 
-func Cover(img image.Image, w, h int, method Method) image.Image {
-	var bounds image.Rectangle
-	size := img.Bounds().Size()
+func FitCover(img image.Image, w, h int, method Method) image.Image {
+	bounds := img.Bounds()
+	size := bounds.Size()
+
 	srcRatio := float32(size.X) / float32(size.Y)
 	dstRatio := float32(w) / float32(h)
+
+	var srcBounds image.Rectangle
 	if srcRatio >= dstRatio {
 		width := int(float32(size.X) * dstRatio / srcRatio)
 		dx := (size.X - width) / 2
-		bounds = image.Rect(
-			img.Bounds().Min.X+dx,
-			img.Bounds().Min.Y,
-			img.Bounds().Min.X+dx+width,
-			img.Bounds().Min.Y+size.Y,
+		srcBounds = image.Rect(
+			bounds.Min.X+dx,
+			bounds.Min.Y,
+			bounds.Min.X+dx+width,
+			bounds.Min.Y+size.Y,
 		)
 	} else {
 		height := int(float32(size.Y) * srcRatio / dstRatio)
 		dy := (size.Y - height) / 2
-		bounds = image.Rect(
-			img.Bounds().Min.X,
-			img.Bounds().Min.Y+dy,
-			img.Bounds().Min.X+size.X,
-			img.Bounds().Min.Y+dy+height,
+		srcBounds = image.Rect(
+			bounds.Min.X,
+			bounds.Min.Y+dy,
+			bounds.Min.X+size.X,
+			bounds.Min.Y+dy+height,
 		)
 	}
-	return resize(
-		img,
-		bounds,
-		w, h,
-		method,
-	)
+
+	return resize(img, srcBounds, image.Rect(0, 0, w, h), method)
 }
