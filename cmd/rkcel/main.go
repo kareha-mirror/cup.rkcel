@@ -4,11 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"image"
-	_ "image/gif"
+	"image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
 	"os"
+	"time"
 
 	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/tiff"
@@ -42,24 +43,37 @@ OPTIONS:
 `, name)
 }
 
+type Options struct {
+	numColors            *int
+	noDither             *bool
+	noMedian             *bool
+	runCalib             *bool
+	noFit                *bool
+	scaleApproxBilinear  *bool
+	scaleNearestNeighbor *bool
+	cover                *bool
+}
+
 func main() {
-	numColors := flag.Int("n", 255, "number of colors used (max 255)")
-	noDither := flag.Bool("d", false, "disable dithering")
-	noMedian := flag.Bool("m", false, "disable median cut")
-	runCalib := flag.Bool("c", false, "run calibration")
-	noFit := flag.Bool("f", false, "disable fitting")
-	scaleApproxBilinear := flag.Bool(
+	opt := Options{}
+
+	opt.numColors = flag.Int("n", 255, "number of colors used (max 255)")
+	opt.noDither = flag.Bool("d", false, "disable dithering")
+	opt.noMedian = flag.Bool("m", false, "disable median cut")
+	opt.runCalib = flag.Bool("c", false, "run calibration")
+	opt.noFit = flag.Bool("f", false, "disable fitting")
+	opt.scaleApproxBilinear = flag.Bool(
 		"sb", false, "approximate bilinear scaling",
 	)
-	scaleNearestNeighbor := flag.Bool(
+	opt.scaleNearestNeighbor = flag.Bool(
 		"sn", false, "nearest neighbor scaling",
 	)
-	cover := flag.Bool("cover", false, "cover fitting")
+	opt.cover = flag.Bool("cover", false, "cover fitting")
 
 	flag.Parse()
 	args := flag.Args()
 
-	if *runCalib {
+	if *opt.runCalib {
 		err := rkcel.UserCalibrate()
 		if err != nil {
 			fatal(err)
@@ -84,15 +98,69 @@ func main() {
 		in = f
 	}
 
-	img, _, err := image.Decode(in)
+	r := rkcel.NewCacheReader(in)
+	_, format, err := image.DecodeConfig(r)
 	if err != nil {
 		fatal(err)
 	}
+	r.Rewind()
 
-	if !*noFit {
-		cfg, err := rkcel.LoadUserConfig()
+	if format == "gif" {
+		g, err := gif.DecodeAll(r)
 		if err != nil {
 			fatal(err)
+		}
+
+		if len(g.Image) < 2 {
+			if len(g.Image) > 0 {
+				err = print(&opt, g.Image[0])
+				if err != nil {
+					fatal(err)
+				}
+				fmt.Print("\n")
+			}
+			return
+		}
+
+		termi.HideCursor()
+		defer termi.ShowCursor()
+
+		next := time.Now()
+		for k := 0; k < g.LoopCount || g.LoopCount < 1; k++ {
+			for i, img := range g.Image {
+				termi.MoveCursor(0, 0)
+				err = print(&opt, img)
+				if err != nil {
+					fatal(err)
+				}
+
+				delay := g.Delay[i]
+				if delay == 0 {
+					delay = 10
+				}
+				next = next.Add(time.Duration(delay) * 10 * time.Millisecond)
+				time.Sleep(time.Until(next))
+			}
+		}
+		fmt.Print("\n")
+	} else {
+		img, _, err := image.Decode(r)
+		if err != nil {
+			fatal(err)
+		}
+		err = print(&opt, img)
+		if err != nil {
+			fatal(err)
+		}
+		fmt.Print("\n")
+	}
+}
+
+func print(opt *Options, img image.Image) error {
+	if !*opt.noFit {
+		cfg, err := rkcel.LoadUserConfig()
+		if err != nil {
+			return err
 		}
 		w, h := termi.Size()
 		maxW := cfg.CellWidth * w
@@ -100,13 +168,13 @@ func main() {
 		size := img.Bounds().Size()
 		if size.X > maxW || size.Y > maxH {
 			var method = rkcel.CatmullRom
-			if *scaleApproxBilinear {
+			if *opt.scaleApproxBilinear {
 				method = rkcel.ApproxBilinear
 			}
-			if *scaleNearestNeighbor {
+			if *opt.scaleNearestNeighbor {
 				method = rkcel.NearestNeighbor
 			}
-			if *cover {
+			if *opt.cover {
 				img = rkcel.FitCover(img, maxW, maxH, method)
 			} else {
 				img = rkcel.FitContain(img, maxW, maxH, method)
@@ -114,9 +182,5 @@ func main() {
 		}
 	}
 
-	err = rkcel.Print(img, *numColors, !*noDither, !*noMedian)
-	if err != nil {
-		fatal(err)
-	}
-	fmt.Print("\n")
+	return rkcel.Print(img, *opt.numColors, !*opt.noDither, !*opt.noMedian)
 }
