@@ -24,4 +24,5 @@ OPTIONS:
   -sb: Approximate bilinear scaling
   -sn: Nearest neighbor scaling
   -cover: Cover fitting
+  -wait: Wait enter key
 ```

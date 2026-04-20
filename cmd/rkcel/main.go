@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"image"
@@ -40,6 +41,7 @@ OPTIONS:
   -sb: Approximate bilinear scaling
   -sn: Nearest neighbor scaling
   -cover: Cover fitting
+  -wait: Wait enter key
 `, name)
 }
 
@@ -69,6 +71,7 @@ func main() {
 		"sn", false, "nearest neighbor scaling",
 	)
 	opt.cover = flag.Bool("cover", false, "cover fitting")
+	wait := flag.Bool("wait", false, "wait enter key")
 
 	flag.Parse()
 	args := flag.Args()
@@ -142,7 +145,6 @@ func main() {
 				time.Sleep(time.Until(next))
 			}
 		}
-		fmt.Print("\n")
 	} else {
 		img, _, err := image.Decode(r)
 		if err != nil {
@@ -152,7 +154,12 @@ func main() {
 		if err != nil {
 			fatal(err)
 		}
-		fmt.Print("\n")
+	}
+	fmt.Print("\n")
+
+	if *wait {
+		fmt.Print("Press Enter to Continue")
+		bufio.NewReader(os.Stdin).ReadBytes('\n')
 	}
 }
 
