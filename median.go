@@ -203,8 +203,9 @@ func MedianCut(img image.Image, maxColors int) []color.Color {
 				r := rgba.Pix[i]
 				g := rgba.Pix[i+1]
 				b := rgba.Pix[i+2]
+				a := rgba.Pix[i+3]
 				c := newRGB(r, g, b)
-				counts[c]++
+				counts[c] += int(a)
 			}
 		}
 	} else if nrgba, ok := img.(*image.NRGBA); ok {
@@ -213,28 +214,29 @@ func MedianCut(img image.Image, maxColors int) []color.Color {
 			offset := (y - bounds.Min.Y) * nrgba.Stride
 			for x := bounds.Min.X; x < bounds.Max.X; x++ {
 				i := offset + (x-bounds.Min.X)*4
-				r := nrgba.Pix[i]
-				g := nrgba.Pix[i+1]
-				b := nrgba.Pix[i+2]
-				c := newRGB(r, g, b)
-				counts[c]++
+				a := int(nrgba.Pix[i+3])
+				r := int(nrgba.Pix[i]) * a / 255
+				g := int(nrgba.Pix[i+1]) * a / 255
+				b := int(nrgba.Pix[i+2]) * a / 255
+				c := newRGB(uint8(r), uint8(g), uint8(b))
+				counts[c] += a
 			}
 		}
 	} else if pal, ok := img.(*image.Paletted); ok {
 		counts = make(map[rgb]int, len(pal.Palette))
 		for _, idx := range pal.Pix {
 			col := pal.Palette[idx]
-			r, g, b, _ := col.RGBA()
+			r, g, b, a := col.RGBA()
 			c := newRGB(uint8(r>>8), uint8(g>>8), uint8(b>>8))
-			counts[c]++
+			counts[c] += int(a >> 8)
 		}
 	} else {
 		counts = make(map[rgb]int, bounds.Dx()*bounds.Dy()/4)
 		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 			for x := bounds.Min.X; x < bounds.Max.X; x++ {
-				r, g, b, _ := img.At(x, y).RGBA()
+				r, g, b, a := img.At(x, y).RGBA()
 				c := newRGB(uint8(r>>8), uint8(g>>8), uint8(b>>8))
-				counts[c]++
+				counts[c] += int(a >> 8)
 			}
 		}
 	}
