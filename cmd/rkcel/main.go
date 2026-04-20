@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"image/color"
+	"image/draw"
 	"image/gif"
 	_ "image/jpeg"
 	_ "image/png"
@@ -189,5 +191,10 @@ func print(opt *Options, img image.Image) error {
 		}
 	}
 
-	return rkcel.Print(img, *opt.numColors, !*opt.noDither, !*opt.noMedian)
+	dst := image.NewRGBA(img.Bounds())
+	bg := image.NewUniform(color.White)
+	draw.Draw(dst, dst.Bounds(), bg, image.Point{}, draw.Src)
+	draw.Draw(dst, dst.Bounds(), img, image.Point{}, draw.Over)
+
+	return rkcel.Print(dst, *opt.numColors, !*opt.noDither, !*opt.noMedian)
 }
