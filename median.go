@@ -85,6 +85,10 @@ func (b box) rangeB() uint8 {
 }
 
 func weightedMedian(colors []colorCount, axis int, target int) int {
+	if len(colors) <= 2 {
+		return len(colors) / 2
+	}
+
 	left, right := 0, len(colors)-1
 	for left <= right { // guard
 		//pivotIndex := (left + right) / 2
