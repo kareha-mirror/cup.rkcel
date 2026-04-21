@@ -25,4 +25,5 @@ OPTIONS:
   -sn: Nearest neighbor scaling
   -cover: Cover fitting
   -wait: Wait enter key
+  -raw: Output raw Sixel
 ```

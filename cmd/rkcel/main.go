@@ -10,6 +10,7 @@ import (
 	_ "image/png"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	_ "golang.org/x/image/bmp"
@@ -42,6 +43,7 @@ OPTIONS:
   -sn: Nearest neighbor scaling
   -cover: Cover fitting
   -wait: Wait enter key
+  -raw: Output raw Sixel
 `, name)
 }
 
@@ -54,6 +56,8 @@ type Options struct {
 	scaleApproxBilinear  *bool
 	scaleNearestNeighbor *bool
 	cover                *bool
+	raw                  *bool
+	tmux                 bool
 }
 
 func main() {
@@ -72,9 +76,18 @@ func main() {
 	)
 	opt.cover = flag.Bool("cover", false, "cover fitting")
 	wait := flag.Bool("wait", false, "wait enter key")
+	opt.raw = flag.Bool("raw", false, "output raw Sixel")
 
 	flag.Parse()
 	args := flag.Args()
+
+	opt.tmux = false
+	for _, line := range os.Environ() {
+		if strings.HasPrefix(line, "TMUX=") {
+			opt.tmux = true
+			break
+		}
+	}
 
 	if *opt.runCalib {
 		err := rkcel.UserCalibrate()
@@ -155,21 +168,28 @@ func main() {
 			fatal(err)
 		}
 	}
-	fmt.Print("\n")
+	if !*opt.raw && !opt.tmux {
+		fmt.Print("\n")
+	}
 
-	if *wait {
+	if *wait && !*opt.raw {
 		fmt.Print("Press Enter to Continue")
 		bufio.NewReader(os.Stdin).ReadBytes('\n')
 	}
 }
 
 func print(opt *Options, img image.Image) error {
-	if !*opt.noFit {
+	if !*opt.noFit && !*opt.raw {
 		cfg, err := rkcel.LoadUserConfig()
 		if err != nil {
 			return err
 		}
 		w, h := termi.Size()
+
+		if opt.tmux {
+			h--
+		}
+
 		maxW := cfg.CellWidth * w
 		maxH := cfg.CellHeight * (h - 1)
 		size := img.Bounds().Size()

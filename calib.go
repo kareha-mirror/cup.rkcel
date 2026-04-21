@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"os"
+	"strings"
 
 	"tea.kareha.org/cup/termi"
 )
@@ -89,6 +91,15 @@ func Calibrate(cfg *Config) {
 	var prevKey termi.KeyKind
 	var prevRune rune
 
+	tmux := false
+	for _, line := range os.Environ() {
+		if strings.HasPrefix(line, "TMUX=") {
+			tmux = true
+			break
+		}
+	}
+
+	count := 0
 loop:
 	for {
 		cols, rows = termi.Size()
@@ -114,15 +125,17 @@ loop:
 
 		Print(img, 8, false, false)
 
-		termi.MoveCursor(2, 1)
-		fmt.Printf("* Use Arrow Keys to Fit the Rectangle to Screen *")
-		termi.MoveCursor(2, 2)
-		fmt.Printf("             * Push Enter to Exit *              ")
-		termi.MoveCursor(10, 4)
-		fmt.Printf("CellWidth = %d, CellHeight = %d", cellW, cellH)
+		if !tmux || count%2 == 0 {
+			termi.MoveCursor(2, 1)
+			fmt.Printf("* Use Arrow Keys to Fit the Rectangle to Screen *")
+			termi.MoveCursor(2, 2)
+			fmt.Printf("             * Push Enter to Exit *              ")
+			termi.MoveCursor(10, 4)
+			fmt.Printf("CellWidth = %d, CellHeight = %d", cellW, cellH)
 
-		termi.MoveCursor(0, rows-1)
-		fmt.Printf("[ Bottm Line Reserved ]")
+			termi.MoveCursor(0, rows-1)
+			fmt.Printf("[ Bottm Line Reserved ]")
+		}
 
 		key := termi.ReadKey()
 		switch key.Kind {
@@ -161,6 +174,8 @@ loop:
 		hasPrev = true
 		prevKey = key.Kind
 		prevRune = key.Rune
+
+		count++
 	}
 
 	termi.Clear()
