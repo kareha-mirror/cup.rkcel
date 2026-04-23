@@ -10,7 +10,6 @@ import (
 	_ "image/png"
 	"io"
 	"os"
-	"strings"
 	"time"
 
 	_ "golang.org/x/image/bmp"
@@ -81,13 +80,7 @@ func main() {
 	flag.Parse()
 	args := flag.Args()
 
-	opt.tmux = false
-	for _, line := range os.Environ() {
-		if strings.HasPrefix(line, "TMUX=") {
-			opt.tmux = true
-			break
-		}
-	}
+	opt.tmux = os.Getenv("TMUX") != ""
 
 	if *opt.runCalib {
 		err := rkcel.UserCalibrate()
