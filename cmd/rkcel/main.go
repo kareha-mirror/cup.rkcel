@@ -131,13 +131,13 @@ func main() {
 			return
 		}
 
-		termi.HideCursor()
-		defer termi.ShowCursor()
+		fmt.Print(termi.HideCursor)
+		defer fmt.Print(termi.ShowCursor)
 
 		next := time.Now()
 		for k := 0; k < g.LoopCount || g.LoopCount < 1; k++ {
 			for i, img := range g.Image {
-				termi.MoveCursor(0, 0)
+				fmt.Print(termi.MoveCursor(0, 0))
 				err = print(&opt, img)
 				if err != nil {
 					fatal(err)

@@ -73,7 +73,9 @@ func newBorderImage(
 
 func Calibrate(cfg *Config) {
 	termi.Raw()
-	termi.HideCursor()
+	fmt.Print(termi.SetAlternate)
+	fmt.Print(termi.HideCursor)
+	termi.StartInput()
 
 	cellW, cellH := cfg.CellWidth, cfg.CellHeight
 
@@ -88,7 +90,7 @@ func Calibrate(cfg *Config) {
 	accel := 1
 
 	hasPrev := false
-	var prevKey termi.KeyKind
+	var prevSeq termi.SeqKind
 	var prevRune rune
 
 	tmux := false
@@ -120,27 +122,27 @@ loop:
 			prevHeight = height
 		}
 
-		termi.Clear()
-		termi.HomeCursor()
+		fmt.Print(termi.Clear)
+		fmt.Print(termi.HomeCursor)
 
 		Print(img, 8, false, false)
 
 		if !tmux || count%2 == 0 {
-			termi.MoveCursor(2, 1)
+			fmt.Print(termi.MoveCursor(2, 1))
 			fmt.Printf("* Use Arrow Keys to Fit the Rectangle to Screen *")
-			termi.MoveCursor(2, 2)
+			fmt.Print(termi.MoveCursor(2, 2))
 			fmt.Printf("             * Push Enter to Exit *              ")
-			termi.MoveCursor(10, 4)
+			fmt.Print(termi.MoveCursor(10, 4))
 			fmt.Printf("CellWidth = %d, CellHeight = %d", cellW, cellH)
 
-			termi.MoveCursor(0, rows-1)
+			fmt.Print(termi.MoveCursor(0, rows-1))
 			fmt.Printf("[ Bottm Line Reserved ]")
 		}
 
-		key := termi.ReadKey()
-		switch key.Kind {
-		case termi.KeyRune:
-			switch key.Rune {
+		seq := termi.ReadSeq()
+		switch seq.Kind {
+		case termi.SeqRune:
+			switch seq.Rune {
 			case termi.RuneEscape:
 				break loop
 			case termi.RuneEnter:
@@ -156,32 +158,34 @@ loop:
 			case 'q':
 				break loop
 			}
-		case termi.KeyUp:
+		case termi.SeqUp:
 			height = max(minSize, height-accel)
-		case termi.KeyDown:
+		case termi.SeqDown:
 			height += accel
-		case termi.KeyRight:
+		case termi.SeqRight:
 			width += accel
-		case termi.KeyLeft:
+		case termi.SeqLeft:
 			width = max(minSize, width-accel)
 		}
 
-		if hasPrev && prevKey == key.Kind && prevRune == key.Rune {
+		if hasPrev && prevSeq == seq.Kind && prevRune == seq.Rune {
 			accel = min(maxAccel, accel+1)
 		} else {
 			accel = 1
 		}
 		hasPrev = true
-		prevKey = key.Kind
-		prevRune = key.Rune
+		prevSeq = seq.Kind
+		prevRune = seq.Rune
 
 		count++
 	}
 
-	termi.Clear()
-	termi.HomeCursor()
+	termi.StopInput()
+	fmt.Print(termi.Clear)
+	fmt.Print(termi.HomeCursor)
+	fmt.Print(termi.ResetAlternate)
 	termi.Cooked()
-	termi.ShowCursor()
+	fmt.Print(termi.ShowCursor)
 
 	cfg.CellWidth = cellW
 	cfg.CellHeight = cellH
