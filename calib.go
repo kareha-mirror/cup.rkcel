@@ -93,13 +93,8 @@ func Calibrate(cfg *Config) {
 	var prevSeq termi.SeqKind
 	var prevRune rune
 
-	tmux := false
-	for _, line := range os.Environ() {
-		if strings.HasPrefix(line, "TMUX=") {
-			tmux = true
-			break
-		}
-	}
+	tmux := os.Getenv("TMUX") != "" ||
+		strings.Contains(os.Getenv("TERM"), "tmux")
 
 	count := 0
 loop:
