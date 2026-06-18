@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"os"
-	"strings"
 
 	"tea.kareha.org/cup/termi"
 )
@@ -93,8 +91,7 @@ func Calibrate(cfg *Config) {
 	var prevSeq termi.SeqKind
 	var prevRune rune
 
-	tmux := os.Getenv("TMUX") != "" ||
-		strings.Contains(os.Getenv("TERM"), "tmux")
+	tmux := termi.IsTmux()
 
 	count := 0
 loop:
