@@ -73,7 +73,7 @@ func Calibrate(cfg *Config) {
 	termi.Raw()
 	fmt.Print(termi.SetAlternate)
 	fmt.Print(termi.HideCursor)
-	termi.StartInput()
+	termi.StartKey()
 
 	cellW, cellH := cfg.CellWidth, cfg.CellHeight
 
@@ -88,7 +88,7 @@ func Calibrate(cfg *Config) {
 	accel := 1
 
 	hasPrev := false
-	var prevSeq termi.SeqKind
+	var prevKey termi.KeyKind
 	var prevRune rune
 
 	tmux := termi.IsTmux()
@@ -131,10 +131,10 @@ loop:
 			fmt.Printf("[ Bottm Line Reserved ]")
 		}
 
-		seq := termi.ReadSeq()
-		switch seq.Kind {
-		case termi.SeqRune:
-			switch seq.Rune {
+		key := <-termi.Keys()
+		switch key.Kind {
+		case termi.KeyRune:
+			switch key.Rune {
 			case termi.RuneEscape:
 				break loop
 			case termi.RuneEnter:
@@ -150,29 +150,29 @@ loop:
 			case 'q':
 				break loop
 			}
-		case termi.SeqUp:
+		case termi.KeyUp:
 			height = max(minSize, height-accel)
-		case termi.SeqDown:
+		case termi.KeyDown:
 			height += accel
-		case termi.SeqRight:
+		case termi.KeyRight:
 			width += accel
-		case termi.SeqLeft:
+		case termi.KeyLeft:
 			width = max(minSize, width-accel)
 		}
 
-		if hasPrev && prevSeq == seq.Kind && prevRune == seq.Rune {
+		if hasPrev && prevKey == key.Kind && prevRune == key.Rune {
 			accel = min(maxAccel, accel+1)
 		} else {
 			accel = 1
 		}
 		hasPrev = true
-		prevSeq = seq.Kind
-		prevRune = seq.Rune
+		prevKey = key.Kind
+		prevRune = key.Rune
 
 		count++
 	}
 
-	termi.StopInput()
+	termi.StopKey()
 	fmt.Print(termi.Clear)
 	fmt.Print(termi.HomeCursor)
 	fmt.Print(termi.ResetAlternate)
